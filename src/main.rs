@@ -267,6 +267,7 @@ fn get_weight2(edge: &Edge, t: u64) -> u32 {
     return edge.weight;
 }
 
+
 fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<(u64, u64, u64)>) -> (AnnexTimeVaryingGraph, Vec<(u64, u64, u64)>) {
     let nodes = graph.nodes.clone();
     // compute the distance matrix for the original graph
@@ -306,6 +307,10 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<(u64, u64
             weight: weights,
         });
     }
+    // FIXME : c'est du O(n⁶ * t) ça j'ai fumé un truc
+    let duration = start.elapsed();
+    println!("Time elapsed in creating annex_edges is: {:?}", duration);
+    let start_perturbation = std::time::Instant::now();
     for path in &paths {
         if path.steps.is_empty() {
             continue;
@@ -346,6 +351,8 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<(u64, u64
             }
         }
     }
+    let duration_perturbation = start_perturbation.elapsed();
+    println!("Time elapsed in perturbation() is: {:?}", duration_perturbation);
     let annex_graph = AnnexTimeVaryingGraph {
         max_time,
         nodes,
@@ -353,8 +360,6 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<(u64, u64
         dst_mat_undel,
         dst_mat_del,
     };
-    let duration = start.elapsed();
-    println!("Time elapsed in from_shortest_paths() is: {:?}", duration);
     (annex_graph, vec![])
 
 }
@@ -564,7 +569,7 @@ fn main() {
             weight: 1,
         }
     }).collect();
-    let deleted_edges = vec![(0, 1, 0), (0, 1, 1), (5, 6, 0), (7, 8, 14), (8, 9, 14), (9, 10, 8), (10, 11, 2), (11, 12, 0)];
+    let deleted_edges = vec![(0, 1, 0), (0, 1, 1), (5, 6, 0), (7, 8, 14), (8, 9, 14), (9, 10, 8), (10, 11, 2), (11, 12, 0), (22, 23, 0), (55, 56, 12), (56, 57, 12), (57, 58, 12), (58, 59, 12), (59, 60, 12), (60, 61, 12), (61, 62, 12), (62, 63, 12), (63, 64, 12), (64, 65, 12), (65, 66, 12), (66, 67, 12), (67, 68, 12), (68, 69, 45), (69, 70, 12), (70, 71, 73), (71, 72, 112), (72, 73, 12), (73, 74, 12), (74, 75, 12)];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 200;
 
