@@ -1,0 +1,28 @@
+Recomputing all distance matrix, max time : 3
+Recomputing distance from 0 to 1 at time 0
+0 --2-> 1 : 0--1->2|2--1->1|
+0 --1-> 2, sum : 1
+2 --1-> 1, sum : 2
+Time 0
+Recomputing distance from 0 to 1 at time 1
+0 --2-> 1 : 0--1->2|2--1->1|
+0 --1-> 2, sum : 1
+2 --1-> 1, sum : 2
+Time 1
+Time 2
+Time elapsed in recompute_all_distance_matrix() is: 63.068µs
+Sum of 1/distance is : 0.2222222222222222
+Reachables : 8
+Annex graph with max time : 3
+Time 0
+1, 2, 1, 
+∞, 1, ∞, 
+∞, 1, 1, 
+Time 1
+1, 2, 1, 
+∞, 1, ∞, 
+∞, 1, 1, 
+Time 2
+1, ∞, 1, 
+∞, 1, ∞, 
+∞, 1, 1, 

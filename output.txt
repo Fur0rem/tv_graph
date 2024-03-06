@@ -1,0 +1,54 @@
+Original graph with deleted links with max time : 3
+Time 0
+(0, 2) with weight 1
+(2, 1) with weight 1
+Time 1
+(0, 2) with weight 1
+(2, 1) with weight 1
+Time 2
+(0, 1) with weight 3
+(0, 2) with weight 1
+(2, 1) with weight 1
+New graph with max time : 3
+Time 0
+0 --5--> 1
+0 --1--> 2
+2 --1--> 1
+Time 1
+0 --4--> 1
+0 --1--> 2
+2 --1--> 1
+Time 2
+0 --3--> 1
+0 --1--> 2
+2 --1--> 1
+Single thread
+Time 0
+1 2 1 
+∞ 1 ∞ 
+∞ 1 1 
+Time 1
+1 2 1 
+∞ 1 ∞ 
+∞ 1 1 
+Time 2
+1 2 1 
+∞ 1 ∞ 
+∞ 1 1 
+Robustness is 0.25 with 9 reachables
+Multi thread
+Time 0
+1 2 1 
+∞ 1 ∞ 
+∞ 1 1 
+Time 1
+1 2 1 
+∞ 1 ∞ 
+∞ 1 1 
+Time 2
+1 2 1 
+∞ 1 ∞ 
+∞ 1 1 
+Robustness is 0.25 with 9 reachables
+GPU
+Robustness is 0.25 with 9 reachables
