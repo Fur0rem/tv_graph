@@ -167,7 +167,6 @@ fn dijkstra(graph: &Graph, start: Node, end: Node, max_time: u64, dist_mat: &mut
         node: start,
         cost: 0,
     });
-
     while let Some(DijkstraNode { node, cost }) = heap.pop() {
         if visited[node as usize] {
             continue;
@@ -262,12 +261,12 @@ fn old_get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix
 
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 struct SubPath {
     from: Node,
     to: Node,
     time_start: u64,
     total_length: u32,
+
 }
 
 // Takes 160us for a path of 200 steps, so very very good, considering that its not optimized at all
@@ -349,13 +348,13 @@ fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) ->
         for j in i..path.steps.len() {
             let (from2, weight2, to2) = &path.steps[j];
             sum += weight2;
-            //if sum <= max_time as u32 {
+            if sum <= max_time as u32 {
                 pairs.push((*from, *to2));
                 sums.push(sum);
                 lengths.push(j - i + 1);
                 total_lengths.push(total_length);
                 times.push(i as u64);
-            //}
+            }
         }
     }//);
     
@@ -371,7 +370,7 @@ fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) ->
             from: *from,
             to: *to,
             time_start: *time as u64,
-            total_length: if *sum <= max_time as u32 { *sum } else { u32::MAX },
+            total_length: *sum as u32,
         });
     }
     
@@ -403,7 +402,7 @@ fn johnson(graph: &Graph, max_time: u64) -> (Vec<CorrelatedPaths>, DistanceMatri
 
 // Todo : j'ai l'impression que c'est moins rapide tf?
 fn new_johnson(graph: &Graph, max_time: u64) -> DistanceMatrix {
-    let mut dst_mat = vec![vec![0; graph.max_node_index as usize]; graph.max_node_index as usize];
+    let mut dst_mat = vec![vec![u32::MAX; graph.max_node_index as usize]; graph.max_node_index as usize];
     for i in 0..graph.max_node_index {
         for j in 0..graph.max_node_index {
             if i == j {
@@ -412,56 +411,28 @@ fn new_johnson(graph: &Graph, max_time: u64) -> DistanceMatrix {
         }
     }
     for (node, _) in &graph.nodes {
-        let mut nb_dijkstras_done = 0;
-        for (node2, _) in graph.nodes.iter() {
+        for (node2, _) in graph.nodes.iter().rev() {
+            if dst_mat[*node as usize][*node2 as usize] != u32::MAX {
+                continue;
+            }
             if node == node2 {
                 continue;
             }
-            if dst_mat[*node as usize][*node2 as usize] != 0 {
-                continue;
-            }
-            nb_dijkstras_done += 1;
-            let path = dijkstra(graph, *node, *node2, max_time, &mut dst_mat);
-            if path.steps.is_empty() {
-                dst_mat[*node as usize][*node2 as usize] = u32::MAX;
-                continue;
-            }
-            /*dst_mat[*node as usize][*node2 as usize] = {
-                let sum = path.steps.iter().map(|(_, w, _)| w).sum::<u32>();
-                if sum <= max_time as u32 {
-                    sum
-                } else {
-                    u32::MAX
-                }
-            };*/
-            /*if (path.from == 1 && path.to == 30) {
-                println!("{:?}", path);
+            //if dst_mat[*node as usize][*node2 as usize] == u32::MAX {
+                let path = dijkstra(graph, *node, *node2, max_time, &mut dst_mat);
                 let subpaths = get_correlated_paths(&path, max_time, &dst_mat);
-                println!("{:?}", subpaths);
-            }*/
-            let subpaths = get_correlated_paths(&path, max_time, &dst_mat);
-            for subpath in subpaths {
-                let (from, to, time_start, total_length) = (subpath.from, subpath.to, subpath.time_start, subpath.total_length);
-                /*if (path.from == 1 && path.to == 30) {
-                    println!("Subpath from {} to {} at time {} with total length {}", from, to, time_start, total_length);
-                }*/
-                if dst_mat[from as usize][to as usize] == 0 {
-                    dst_mat[from as usize][to as usize] = total_length;
-                } else {
-                    dst_mat[from as usize][to as usize] = std::cmp::min(dst_mat[from as usize][to as usize], total_length);
+                // write the subpaths in the distance matrix
+                for subpath in subpaths {
+                    //println!("{} --{}-> {} at start time {}", subpath.from, subpath.total_length, subpath.to, subpath.time_start);
+                    if subpath.time_start + subpath.total_length as u64 > max_time {
+                        break;
+                    }
+                    dst_mat[subpath.from as usize][subpath.to as usize] = subpath.total_length;
                 }
-            }
+            //}
         }
-        // TODO : si path pas trouvé, alors mettre a infini
-        println!("Dijkstras done for node {} : {}", node, nb_dijkstras_done);
-        /*if (*node < 5) {
-            print_matrix(&dst_mat);
-        }*/
     }
     return dst_mat;
-        //print_matrix(&dst_mat);
-    //}
-    //return dst_mat;
 }
 
 type DistanceMatrix = Vec<Vec<u32>>;
@@ -668,12 +639,12 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
     
     
     //benchmark!("invalidate_deleted_edges", invalidate_deleted_edges(&paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
-    /*println!("Deleted distance matrices 0");
+    println!("Deleted distance matrices 0");
     print_matrix(&dst_mat_del[0]);
     println!("Deleted distance matrices 1");
     print_matrix(&dst_mat_del[1]);
     println!("Deleted distance matrices 2");
-    print_matrix(&dst_mat_del[2]);*/
+    print_matrix(&dst_mat_del[2]);
     /*for (i, edge) in graph.edges.iter().enumerate() {
         let mut weight = vec![u32::MAX; max_time as usize];
         for t in 0..max_time {
@@ -924,7 +895,7 @@ fn main() {
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 200;*/
 
-    let nb_nodes = 100;
+    let nb_nodes = 1000;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
