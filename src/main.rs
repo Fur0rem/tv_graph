@@ -745,7 +745,6 @@ fn temporal_dijkstra(graph: &AnnexTimeVaryingGraph, start: Node, end: Node, max_
     });
     while let Some(DijkstraNode { node, cost }) = heap.pop() {
         if visited[node as usize] {
-            //distance_matrix[start as usize][node as usize] = cost;
             continue;
         }
         visited[node as usize] = true;
@@ -785,7 +784,6 @@ fn temporal_dijkstra(graph: &AnnexTimeVaryingGraph, start: Node, end: Node, max_
     };
 }
 
-
 fn recompute_all_distance_matrix(graph: &mut AnnexTimeVaryingGraph) {
     let max_node_index = graph.nodes.iter().map(|(n, _)| n).max().unwrap() + 1;
     for t in 0..graph.max_time {
@@ -795,31 +793,14 @@ fn recompute_all_distance_matrix(graph: &mut AnnexTimeVaryingGraph) {
                     //println!("Recomputing distance from {} to {} at time {}", i, j, t);
                     // TODO : take adventage of the fact that we already have the shortest path from a bunch of other nodes
                     let path = temporal_dijkstra(graph, i as u64, j as u64, graph.max_time, t, max_node_index, &graph.dst_mat_del[t as usize]);
-                    //print_path(&path);
-                    /*let mut normal_path = Path {
-                        from: i as u64,
-                        to: j as u64,
-                        steps: vec![],
-                    };
-                    for (from, weight, to) in &path.path.steps {
-                        normal_path.steps.push((*from, *weight, *to));
-                    }*/
                     let subpaths = get_correlated_paths(&path, graph.max_time);
-                    let subpaths = subpaths.iter().map(|subpath| {
-                        SubPath {
-                            from: subpath.from,
-                            to: subpath.to,
-                            time_start: subpath.time_start + t,
-                            total_length: subpath.total_length,
-                        }
-                    }).collect::<Vec<_>>();
                     for subpath in &subpaths {
                         let (from, to, time_start, total_length) = (subpath.from, subpath.to, subpath.time_start, subpath.total_length);
-                        if total_length == u32::MAX {
-                            continue;
+                        let new_time = t + time_start;
+                        if new_time < graph.max_time {
+                            graph.dst_mat_del[new_time as usize][from as usize][to as usize] = total_length;
                         }
-                        graph.dst_mat_del[t as usize][from as usize][to as usize] = total_length;
-                    }    
+                    }
                 }
                 // Remove the distance if it is too high
                 // TODO TAG PROUT
@@ -919,7 +900,7 @@ fn main() {
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 200;*/
 
-    let nb_nodes = 10;
+    /*let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -933,9 +914,9 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;
+    let max_time = 5;*/
 
-    /*let edges = vec![
+    let edges = vec![
             Edge {
                 from: 0,
                 to: 1,
@@ -952,9 +933,13 @@ fn main() {
                 weight: 1,
             },
         ];
-    let deleted_edges = vec![(0, 1, 0), (0, 1, 1)];
+    let deleted_edges = vec![DeletedLink {
+        from: 0,
+        to: 1,
+        times: vec![0, 1],
+    }];
     let nodes = vec![(0, vec![(1, 3), (2, 1)]), (1, vec![]), (2, vec![(1, 1)])];
-    let max_time = 3;*/
+    let max_time = 3;
     let max_node_index = edges.iter().map(|e| e.from.max(e.to)).max().unwrap() + 1;
     let graph = Graph {
         max_node_index,
