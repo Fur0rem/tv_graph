@@ -1,0 +1,70 @@
+Dijkstras done for node 0 : 2
+Dijkstras done for node 1 : 2
+Dijkstras done for node 2 : 2
+Time elapsed in new johnson() is: 34.735µs
+1, 2, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time elapsed in create_phantom_edges() is: 661ns
+Time elapsed in deleted_edges_matrix() is: 401ns
+Time elapsed in invalidate_deleted_edges() is: 261ns
+Annex edges : [TimeVaryingEdge { from: 0, to: 1, weight: [4, 3, 2, 2, 2, 4294967295] }, TimeVaryingEdge { from: 0, to: 2, weight: [1, 1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 2, to: 1, weight: [2, 2, 2, 2, 2, 4294967295] }]
+Annex graph with max time : 6
+Time 0
+1, 0, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 1
+1, 0, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 2
+1, 0, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 3
+1, 0, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 4
+1, 0, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 5
+1, 0, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 0
+Time 1
+Time 2
+Time 3
+Time 4
+Time 5
+Time elapsed in recompute_all_distance_matrix() is: 20.368µs
+Sum of 1/distance is : 0.21296296296296294
+Reachables : 16
+Annex graph with max time : 6
+Time 0
+1, 3, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 1
+1, 3, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 2
+1, 2, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 3
+1, 2, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 4
+1, 2, 1, 
+∞, 1, ∞, 
+∞, 2, 1, 
+Time 5
+1, 0, 1, 
+∞, 1, ∞, 
+∞, ∞, 1, 

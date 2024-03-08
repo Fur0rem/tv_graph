@@ -601,7 +601,9 @@ fn create_phantom_edges(graph: &Graph, max_time: u64, deleted_edges: &Vec<Delete
                     }
                 }
             }
-            weights.push(get_weight2(edge, t) + wait as u32);
+            let weight_t = get_weight2(edge, t) + wait as u32;
+            // Remove weights that are too high
+            weights.push(if weight_t + t as u32 <= max_time as u32 { weight_t } else { u32::MAX });
         }
         annex_edges.push(TimeVaryingEdge {
             from: edge.from,
@@ -920,7 +922,7 @@ fn main() {
             Edge {
                 from: 0,
                 to: 1,
-                weight: 3,
+                weight: 2,
             },
             Edge {
                 from: 0,
@@ -930,7 +932,7 @@ fn main() {
             Edge {
                 from: 2,
                 to: 1,
-                weight: 1,
+                weight: 2,
             },
         ];
     let deleted_edges = vec![DeletedLink {
@@ -938,8 +940,10 @@ fn main() {
         to: 1,
         times: vec![0, 1],
     }];
-    let nodes = vec![(0, vec![(1, 3), (2, 1)]), (1, vec![]), (2, vec![(1, 1)])];
-    let max_time = 3;
+    let nodes = vec![(0, vec![(1, 1), (2, 1)]), (1, vec![]), (2, vec![(1, 1)])];
+    let max_time = 6;
+
+
     let max_node_index = edges.iter().map(|e| e.from.max(e.to)).max().unwrap() + 1;
     let graph = Graph {
         max_node_index,

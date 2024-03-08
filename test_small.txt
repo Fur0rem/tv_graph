@@ -1,13 +1,13 @@
 Dijkstras done for node 0 : 1
 Dijkstras done for node 1 : 2
 Dijkstras done for node 2 : 1
-Time elapsed in new johnson() is: 39.624µs
+Time elapsed in new johnson() is: 43.632µs
 1, 2, 1, 
 ∞, 1, ∞, 
 ∞, 1, 1, 
-Time elapsed in create_phantom_edges() is: 782ns
-Time elapsed in deleted_edges_matrix() is: 521ns
-Time elapsed in invalidate_deleted_edges() is: 391ns
+Time elapsed in create_phantom_edges() is: 661ns
+Time elapsed in deleted_edges_matrix() is: 391ns
+Time elapsed in invalidate_deleted_edges() is: 170ns
 Annex edges : [TimeVaryingEdge { from: 0, to: 1, weight: [5, 4, 3, 3, 4294967295, 4294967295] }, TimeVaryingEdge { from: 0, to: 2, weight: [1, 1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 2, to: 1, weight: [1, 1, 1, 1, 1, 1] }]
 Annex graph with max time : 6
 Time 0
@@ -40,7 +40,7 @@ Time 2
 Time 3
 Time 4
 Time 5
-Time elapsed in recompute_all_distance_matrix() is: 18.504µs
+Time elapsed in recompute_all_distance_matrix() is: 15.699µs
 Sum of 1/distance is : 0.3194444444444444
 Reachables : 17
 Annex graph with max time : 6
