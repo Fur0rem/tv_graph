@@ -1,20 +1,7 @@
 type Node = u64;
 type Weight = u32;
 
-use std::time;
-
 use fibonacii_heap::Heap;
-
-
-macro_rules! benchmark {
-    ($name:expr, $block:expr) => {{
-        let start = std::time::Instant::now();
-        let result = $block;
-        let duration = start.elapsed();
-        println!("Time elapsed in {}() is: {:?}", $name, duration);
-        result
-    }};
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Edge {
@@ -81,17 +68,6 @@ impl Ord for DijkstraNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct DeletedLink {
-    from: Node,
-    to: Node,
-    times: Vec<u64>,
-}
-
-struct DeletedLinksMatrix {
-    links: Vec<Vec<Vec<u64>>>
-}
-
 /*fn dijkstra(graph: &Graph, start: Node, end: Node, max_time: u64) -> Path {
     let mut dist = vec![u32::MAX; graph.max_node_index as usize];
     let mut prev = vec![u64::MAX; graph.max_node_index as usize];
@@ -143,7 +119,6 @@ struct DeletedLinksMatrix {
     };
 }*/
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 struct PathSlice {
     index_start: usize,
     index_end: usize,
@@ -151,7 +126,6 @@ struct PathSlice {
     total_length: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 struct CorrelatedPaths {
     main_path: Path,
     subpaths: Vec<PathSlice>,
@@ -208,179 +182,39 @@ fn dijkstra(graph: &Graph, start: Node, end: Node, max_time: u64, dist_mat: &mut
     };
 }
 
-// TODO : fix that some subpaths are from the same node to the same node
-/*fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) -> CorrelatedPaths {
-    
-    // Path = ((0--2-->1), (1--1-->2), (2--1-->3))
-    // Create {(0--4-->3), (0--3-->2), (0--2-->1), (1--2-->3), (1--1-->2), (2--1-->3)}
-
-    let mut pairs = vec![];
-    let mut sums = vec![];
-    let mut total_length = 0;
-    for i in 0..path.steps.len() {
-        let (from, weight, to) = &path.steps[i];
-        total_length += weight;
-        let mut sum = 0;
-        for j in i..path.steps.len() {
-            let (from2, weight2, to2) = &path.steps[j];
-            sum += weight2;
-            if sum <= max_time as u32 {
-                pairs.push((*from, *to2));
-                sums.push(sum);
-            }
-        }
-    }
-    println!("Pairs : {:?}", pairs);
-    println!("Sums : {:?}", sums);
+fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) -> CorrelatedPaths {
     let mut subpaths = vec![];
-    for i in 0..pairs.len() {
-        let (from, to) = pairs[i];
-        let sum = sums[i];
-        let mut index_start = 0;
-        let mut index_end = 0;
-        for j in 0..path.steps.len() {
-            let (from2, weight, to2) = &path.steps[j];
-            if *from2 == from {
-                index_start = j;
-            }
-            if *to2 == to {
-                index_end = j;
-            }
+    let mut index_start = 0;
+    let mut index_end = 0;
+    let mut time_start = 0;
+    let mut total_length = 0;
+    for (i, (from, weight, to)) in path.steps.iter().enumerate() {
+        if total_length + weight > max_time as u32 {
+            subpaths.push(PathSlice {
+                index_start,
+                index_end,
+                time_start,
+                total_length,
+            });
+            index_start = i;
+            index_end = i;
+            time_start = total_length as u64;
+            total_length = *weight as u32;
+        } else {
+            index_end = i;
+            total_length += weight;
         }
-        subpaths.push(PathSlice {
-            index_start,
-            index_end,
-            time_start: sum as u64,
-            total_length,
-        });
     }
+    subpaths.push(PathSlice {
+        index_start,
+        index_end,
+        time_start,
+        total_length,
+    });
     return CorrelatedPaths {
         main_path: path.clone(),
         subpaths,
     };
-
-}*/
-
-struct SubPath {
-    from: Node,
-    to: Node,
-    time_start: u64,
-    total_length: u32,
-
-}
-
-// Takes 160us for a path of 200 steps, so very very good, considering that its not optimized at all
-// And all it gives us (n² - n) / 2 paths, so it's worth it i think
-/*fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) -> Vec<SubPath> {
-    let mut pairs = vec![];
-    let mut sums = vec![];
-    let mut lengths = vec![];
-    let mut total_lengths = vec![];
-    let mut times = vec![];
-    let mut total_length = 0;
-    benchmark!("making pairs",
-    for i in 0..path.steps.len() {
-        let (from, weight, to) = &path.steps[i];
-        total_length += weight;
-        let mut sum = 0;
-        for j in i..path.steps.len() {
-            let (from2, weight2, to2) = &path.steps[j];
-            sum += weight2;
-            if sum <= max_time as u32 {
-                pairs.push((*from, *to2));
-                sums.push(sum);
-                lengths.push(j - i + 1);
-                total_lengths.push(total_length);
-                times.push(i as u64);
-            }
-        }
-    });
-    
-    let mut paths = pairs.iter().zip(sums.iter()).zip(lengths.iter()).zip(total_lengths.iter()).zip(times.iter()).collect::<Vec<_>>();
-    for i in 0..paths.len() {
-        let (((((from, to), sum), length), total_length), time) = paths[i];
-        println!("{} --{}-> {} at start time {}", from, sum, to, time);
-    }
-
-    let mut subpaths = vec![];
-    for i in 0..pairs.len() {
-        let (from, to) = pairs[i];
-        let sum = sums[i];
-        let length = lengths[i];
-        let total_length = total_lengths[i];
-        let time = times[i];
-        let mut index_start = 0;
-        let mut index_end = 0;
-        for j in 0..path.steps.len() {
-            let (from2, weight, to2) = &path.steps[j];
-            if *from2 == from {
-                index_start = j;
-            }
-            if *to2 == to {
-                index_end = j;
-            }
-        }
-        subpaths.push(PathSlice {
-            index_start,
-            index_end,
-            time_start: sum as u64,
-            total_length,
-        });
-    }
-    return CorrelatedPaths {
-        main_path: path.clone(),
-        subpaths,
-    };
-}*/
-
-fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) -> Vec<SubPath> {
-    let mut pairs = vec![];
-    let mut sums = vec![];
-    let mut lengths = vec![];
-    let mut total_lengths = vec![];
-    let mut times = vec![];
-    let mut total_length = 0;
-    benchmark!("making pairs",
-    for i in 0..path.steps.len() {
-        let (from, weight, to) = &path.steps[i];
-        total_length += weight;
-        let mut sum = 0;
-        for j in i..path.steps.len() {
-            let (from2, weight2, to2) = &path.steps[j];
-            sum += weight2;
-            if sum <= max_time as u32 {
-                pairs.push((*from, *to2));
-                sums.push(sum);
-                lengths.push(j - i + 1);
-                total_lengths.push(total_length);
-                times.push(i as u64);
-            }
-        }
-    });
-    
-    let mut paths = pairs.iter().zip(sums.iter()).zip(lengths.iter()).zip(total_lengths.iter()).zip(times.iter()).collect::<Vec<_>>();
-    /*for i in 0..paths.len() {
-        let (((((from, to), sum), length), total_length), time) = paths[i];
-        println!("{} --{}-> {} at start time {}", from, sum, to, time);
-    }*/
-
-    let mut subpaths = vec![];
-    for i in 0..pairs.len() {
-        let (from, to) = pairs[i];
-        let sum = sums[i];
-        let length = lengths[i];
-        let total_length = total_lengths[i];
-        let time = times[i];
-        println!("{} --{}-> {} at start time {}", from, sum, to, time);
-        subpaths.push(SubPath {
-            from: from,
-            to: to,
-            time_start: sum as u64,
-            total_length: total_length,
-        });
-    }
-    
-    return subpaths;
 }
 
 fn johnson(graph: &Graph, max_time: u64) -> (Vec<CorrelatedPaths>, DistanceMatrix) {
@@ -448,13 +282,13 @@ fn from_shortest_paths(paths: &Vec<Path>, nodes: &Vec<(Node, Neighbours)>, max_n
     return matrix;
 }*/
 
-
 // Returns the distance matrix of the unattacked graph and the other distance matrices
-fn from_shortest_corr_paths(paths: &Vec<CorrelatedPaths>, nodes: &Vec<(Node, Neighbours)>, max_node_index: u64, max_time: u64, deleted_edges: &Vec<DeletedLink>) -> DistanceMatrix {
-    let mut original_matrix = vec![vec![u32::MAX; max_node_index as usize]; max_node_index as usize];
+fn from_shortest_corr_paths(paths: &Vec<CorrelatedPaths>, nodes: &Vec<(Node, Neighbours)>, max_node_index: u64, max_time: u64, deleted_edges: &Vec<(u64, u64, u64)>) -> (DistanceMatrix, Vec<DistanceMatrix>) {
+    let mut matrix = vec![vec![u32::MAX; max_node_index as usize]; max_node_index as usize];
+    let mut matrices = vec![];
     // Fill the diagonal with 0
     for i in 0..max_node_index {
-        original_matrix[i as usize][i as usize] = 1;
+        matrix[i as usize][i as usize] = 1;
     }
     for path in paths {
         if path.main_path.steps.is_empty() {
@@ -464,11 +298,25 @@ fn from_shortest_corr_paths(paths: &Vec<CorrelatedPaths>, nodes: &Vec<(Node, Nei
         let to = nodes.iter().position(|&(n, _)| n == path.main_path.to).unwrap();
         let sum = path.main_path.steps.iter().map(|(_, w, _)| w).sum::<u32>();
         if sum <= max_time as u32 {
-            original_matrix[from][to] = sum;
+            matrix[from][to] = sum;
         }
     }
-
-    return original_matrix;
+    matrices.push(matrix.clone());
+    for (i, edge) in deleted_edges.iter().enumerate() {
+        let mut matrix = matrix.clone();
+        for (i, row) in matrix.iter().enumerate() {
+            for (j, cell) in row.iter().enumerate() {
+                if *cell == u32::MAX {
+                    continue;
+                }
+                if *cell + edge.2 as u32 > max_time as u32 {
+                    matrix[i][j] = u32::MAX;
+                }
+            }
+        }
+        matrices.push(matrix);
+    }
+    return (matrix, matrices);
 }
 
 fn print_matrix(matrix: &DistanceMatrix) {
@@ -509,112 +357,23 @@ fn get_weight2(edge: &Edge, t: u64) -> u32 {
     return edge.weight;
 }
 
+macro_rules! benchmark {
+    ($name:expr, $block:expr) => {{
+        let start = std::time::Instant::now();
+        let result = $block;
+        let duration = start.elapsed();
+        println!("Time elapsed in {}() is: {:?}", $name, duration);
+        result
+    }};
+}
 
-fn create_phantom_edges(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLink>, dst_mat_del: &mut Vec<DistanceMatrix>) -> Vec<TimeVaryingEdge> {
+
+fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<(u64, u64, u64)>) -> (AnnexTimeVaryingGraph, Vec<(u64, u64, u64)>) {
     let mut edges = vec![];
-    for deleted_link in deleted_edges {
-        for t in 0..max_time {
-            if deleted_link.times.contains(&t) {
-                continue;
-            }
-            let mut weight = vec![u32::MAX; max_time as usize];
-            for t2 in 0..max_time {
-                if t2 == t {
-                    weight[t2 as usize] = 0;
-                } else {
-                    weight[t2 as usize] = u32::MAX;
-                }
-            }
-            edges.push(TimeVaryingEdge {
-                from: deleted_link.from,
-                to: deleted_link.to,
-                weight,
-            });
-            dst_mat_del[t as usize][deleted_link.from as usize][deleted_link.to as usize] = 0;
-        }
-    }
-    return edges;
-}
-
-
-
-// Unvalidates all shortest paths that go through a deleted edge
-// By writing 0 in the distance matrix (0 means it has to be recomputed)
-// Infinity means that there is no path, but not that it has to be recomputed
-fn invalidate_deleted_edges(paths: &Vec<CorrelatedPaths>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
-    for path in paths {
-        let backtrace = path.main_path.steps.len() > 15;
-        let main_path = &path.main_path;
-        let mut sum = 0;
-        for i in 0..main_path.steps.len() {
-            let (from, weight, to) = &main_path.steps[i];
-            // see if the edge was deleted at sum
-            if deleted_edges.links[*from as usize][*to as usize].contains(&sum) {
-                // invalidate the distance matrix
-                dst_mat_del[sum as usize][*from as usize][*to as usize] = 0;
-                // for the rest of the path, we have to invalidate the distance matrix
-                for j in i+1..main_path.steps.len() {
-                    /*if backtrace {
-                        println!("Invalidating path from {} to {} at time {} with sum {}", main_path.from, main_path.to, 0, sum);
-                    }*/
-                    let (node_from, weight, node_to) = &main_path.steps[j];
-                    sum += *weight as u64;
-                    /*if sum >= max_time {
-                        break;
-                    }
-                    dst_mat_del[sum as usize][*node_from as usize][*node_to as usize] = 0;*/
-                    if dst_mat_del[0][*from as usize][*node_to as usize] != u32::MAX {
-                        dst_mat_del[0][*from as usize][*node_to as usize] = 0;
-                    }
-                }
-            }
-            sum += *weight as u64;
-            //println!("{} --{}-> {}", from, weight, to);
-        }
-    }
-
-}
-
-fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLink>) -> (AnnexTimeVaryingGraph, Vec<(u64, u64, u64)>) {
-    let mut edges : Vec<TimeVaryingEdge> = vec![];
-    let (paths,_) = benchmark!("johnson", johnson(graph, max_time));
-    let mut dst_mat_undel = benchmark!("from_corr_paths", from_shortest_corr_paths(&paths, &graph.nodes, graph.max_node_index, max_time, deleted_edges));
+    let mut paths = benchmark!("johnson", johnson(graph, max_time));
+    let (mut dst_mat_undel, dst_mat_del) = benchmark!("from_corr_paths", from_shortest_corr_paths(&paths.0, &graph.nodes, graph.max_node_index, max_time));
     print_matrix(&dst_mat_undel);
-    // TODO : change that to infinity once debuggin is done
-    let mut dst_mat_del = vec![vec![vec![1; graph.max_node_index as usize]; graph.max_node_index as usize]; max_time as usize];
-
-    let annex_edges = benchmark!("create_phantom_edges", create_phantom_edges(&graph, max_time, &deleted_edges, &mut dst_mat_del));
-
-    // 0 if directly deleted
-    /*for deleted_link in deleted_edges {
-        for t in &deleted_link.times {
-            dst_mat_del[*t as usize][deleted_link.from as usize][deleted_link.to as usize] = 0;
-        }
-    }*/
-    
-    // TODO : yeah this is very space consuming, probably better to switch to a sparse matrix or hashmap
-    let deleted_edges_matrix = benchmark!("deleted_edges_matrix", {
-        let max_node_index = graph.nodes.iter().map(|(n, _)| n).max().unwrap() + 1;
-        let mut deleted_edges_matrix = vec![vec![vec![]; max_node_index as usize]; max_node_index as usize];
-        for deleted_link in deleted_edges {
-            for t in &deleted_link.times {
-                deleted_edges_matrix[deleted_link.from as usize][deleted_link.to as usize].push(*t);
-            }
-        }
-        let deleted_edges_matrix = DeletedLinksMatrix {
-            links: deleted_edges_matrix,
-        };
-        deleted_edges_matrix
-    });
-    
-    
-    benchmark!("invalidate_deleted_edges", invalidate_deleted_edges(&paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
-    println!("Deleted distance matrices 0");
-    print_matrix(&dst_mat_del[0]);
-    println!("Deleted distance matrices 1");
-    print_matrix(&dst_mat_del[1]);
-    println!("Deleted distance matrices 2");
-    print_matrix(&dst_mat_del[2]);
+    let mut dst_mat_del = vec![vec![vec![u32::MAX; graph.max_node_index as usize]; graph.max_node_index as usize]; max_time as usize];
     /*for (i, edge) in graph.edges.iter().enumerate() {
         let mut weight = vec![u32::MAX; max_time as usize];
         for t in 0..max_time {
@@ -644,7 +403,7 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
     return (AnnexTimeVaryingGraph {
         max_time,
         nodes: graph.nodes.clone(),
-        edges: annex_edges,
+        edges,
         dst_mat_undel,
         dst_mat_del,
     }, vec![]);
@@ -852,7 +611,6 @@ fn sum_dma(dma : &Vec<DistanceMatrix>, max_time: u64) -> (f64, u64) {
 
 
 fn main() {
-    /*
     /*let nb_nodes = 500;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
@@ -873,11 +631,7 @@ fn main() {
             weight: 1,
         }
     }).collect();
-    let deleted_edges = vec![DeletedLink {
-        from: 0,
-        to: 1,
-        times: vec![0, 1],
-    }];
+    let deleted_edges = vec![(0, 1, 0), (0, 1, 1)];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 20;
 
@@ -924,15 +678,6 @@ fn main() {
     println!("Time elapsed in recompute_all_distance_matrix() is: {:?}", duration);
     let (sum, reachables) = sum_dma(&annex_graph.dst_mat_del, 20);
     println!("Sum of 1/distance is : {}", sum);
-    println!("Reachables : {}", reachables);*/
-
-    let from = 0;
-    let to = 20;
-    let steps = (from..to).map(|i| (i, 1, i + 1)).collect();
-    let path = Path {
-        from,
-        to,
-        steps,
-    };
-    let correlated_paths = get_correlated_paths(&path, 20, &vec![]);
+    println!("Reachables : {}", reachables);
+    print_annex_graph(&annex_graph);
 }
