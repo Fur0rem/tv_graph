@@ -339,7 +339,7 @@ struct CorrelatedPathsTwo {
     };
 }*/
 
-fn get_correlated_paths(path: &Path, max_time: u64) -> Vec<SubPath> {
+fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) -> Vec<SubPath> {
     let mut pairs = vec![];
     let mut sums = vec![];
     let mut lengths = vec![];
@@ -445,7 +445,7 @@ fn new_johnson(graph: &Graph, max_time: u64) -> (DistanceMatrix, Vec<CorrelatedP
                 let subpaths = get_correlated_paths(&path, max_time, &dst_mat);
                 println!("{:?}", subpaths);
             }*/
-            let subpaths = get_correlated_paths(&path, max_time);
+            let subpaths = get_correlated_paths(&path, max_time, &dst_mat);
             for subpath in &subpaths {
                 let (from, to, time_start, total_length) = (subpath.from, subpath.to, subpath.time_start, subpath.total_length);
                 /*if (path.from == 1 && path.to == 30) {
@@ -559,21 +559,18 @@ fn print_matrix(matrix: &DistanceMatrix) {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 struct TimeVaryingGraph {
     max_time: u64,
     edges: Vec<Edge>,
     deleted_edges: Vec<(u64, u64, u64)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 struct TimeVaryingEdge {
     from: u64,
     to: u64,
     weight: Vec<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
 struct AnnexTimeVaryingGraph {
     max_time: u64,
     nodes: Vec<(Node, Neighbours)>,
@@ -588,28 +585,29 @@ fn get_weight2(edge: &Edge, t: u64) -> u32 {
 
 
 fn create_phantom_edges(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLink>, dst_mat_del: &mut Vec<DistanceMatrix>) -> Vec<TimeVaryingEdge> {
-    let mut annex_edges = vec![];
-    for edge in &graph.edges {
-        let mut weights = vec![];
+    let mut edges = vec![];
+    for deleted_link in deleted_edges {
         for t in 0..max_time {
-            // TODO : rewrite that to be more efficient and less ugly
-            let mut wait = 0;
-            for deleted_edge in deleted_edges {
-                if deleted_edge.from == edge.from && deleted_edge.to == edge.to {
-                    while deleted_edge.times.contains(&(t + wait)) {
-                        wait += 1;
-                    }
+            if deleted_link.times.contains(&t) {
+                continue;
+            }
+            let mut weight = vec![u32::MAX; max_time as usize];
+            for t2 in 0..max_time {
+                if t2 == t {
+                    weight[t2 as usize] = 0;
+                } else {
+                    weight[t2 as usize] = u32::MAX;
                 }
             }
-            weights.push(get_weight2(edge, t) + wait as u32);
+            edges.push(TimeVaryingEdge {
+                from: deleted_link.from,
+                to: deleted_link.to,
+                weight,
+            });
+            dst_mat_del[t as usize][deleted_link.from as usize][deleted_link.to as usize] = 0;
         }
-        annex_edges.push(TimeVaryingEdge {
-            from: edge.from,
-            to: edge.to,
-            weight: weights,
-        });
     }
-    return annex_edges;
+    return edges;
 }
 
 
@@ -692,7 +690,7 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
 
     benchmark!("invalidate_deleted_edges", invalidate_deleted_edges_new(&paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
 
-    println!("Annex edges : {:?}", annex_edges);
+    print_matrix(&dst_mat_del[0]);
 
     return AnnexTimeVaryingGraph {
         max_time,
@@ -727,41 +725,37 @@ fn print_annex_graph(graph: &AnnexTimeVaryingGraph) {
     }
 }
 
-struct TemporalPath {
-    path : Path,
-    start_time : u64,
-}
-
 // TODO : optimize to write every min distance computed
-fn temporal_dijkstra(graph: &AnnexTimeVaryingGraph, start: Node, end: Node, max_time: u64, time: u64, max_node_index: u64, distance_matrix: &DistanceMatrix) -> Path {
+fn temporal_dijkstra(graph: &AnnexTimeVaryingGraph, start: Node, end: Node, max_time: u64, time: u64, max_node_index: u64) -> Path {
     let mut dist = vec![u32::MAX; max_node_index as usize];
     let mut prev = vec![u64::MAX; max_node_index as usize];
     let mut visited = vec![false; max_node_index as usize];
     dist[start as usize] = 0;
-    let mut heap = Heap::new();
-    heap.push(DijkstraNode {
-        node: start,
-        cost: 0,
-    });
-    while let Some(DijkstraNode { node, cost }) = heap.pop() {
-        if visited[node as usize] {
-            //distance_matrix[start as usize][node as usize] = cost;
-            continue;
+    for _ in 0..max_node_index {
+        let mut min_dist = u32::MAX;
+        let mut min_node = u64::MAX;
+        for (i, d) in dist.iter().enumerate() {
+            if !visited[i] && *d < min_dist {
+                min_dist = *d;
+                min_node = i as u64;
+            }
         }
-        visited[node as usize] = true;
+        /*if min_node > max_time {
+            break;
+        }*/
+        if min_node == u64::MAX {
+            break;
+        }
+        visited[min_node as usize] = true;
         for edge in &graph.edges {
-            if edge.from == node {
-                if dist[node as usize] == u32::MAX {
+            if edge.from == min_node {
+                if dist[min_node as usize] == u32::MAX || edge.weight[time as usize] == u32::MAX {
                     continue;
                 }
-                let alt = dist[node as usize] + edge.weight[time as usize];
+                let alt = dist[min_node as usize] + edge.weight[time as usize];
                 if alt < dist[edge.to as usize] {
                     dist[edge.to as usize] = alt;
-                    prev[edge.to as usize] = node;
-                    heap.push(DijkstraNode {
-                        node: edge.to,
-                        cost: alt,
-                    });
+                    prev[edge.to as usize] = min_node;
                 }
             }
         }
@@ -785,8 +779,8 @@ fn temporal_dijkstra(graph: &AnnexTimeVaryingGraph, start: Node, end: Node, max_
     };
 }
 
-
 fn recompute_all_distance_matrix(graph: &mut AnnexTimeVaryingGraph) {
+    println!("Recomputing all distance matrix, max time : {}", graph.max_time);
     let max_node_index = graph.nodes.iter().map(|(n, _)| n).max().unwrap() + 1;
     for t in 0..graph.max_time {
         for i in 0..graph.dst_mat_undel.len() {
@@ -794,32 +788,35 @@ fn recompute_all_distance_matrix(graph: &mut AnnexTimeVaryingGraph) {
                 if graph.dst_mat_del[t as usize][i][j] == 0 {
                     //println!("Recomputing distance from {} to {} at time {}", i, j, t);
                     // TODO : take adventage of the fact that we already have the shortest path from a bunch of other nodes
-                    let path = temporal_dijkstra(graph, i as u64, j as u64, graph.max_time, t, max_node_index, &graph.dst_mat_del[t as usize]);
-                    //print_path(&path);
-                    /*let mut normal_path = Path {
-                        from: i as u64,
-                        to: j as u64,
-                        steps: vec![],
-                    };
-                    for (from, weight, to) in &path.path.steps {
-                        normal_path.steps.push((*from, *weight, *to));
+                    let path = temporal_dijkstra(graph, i as u64, j as u64, graph.max_time, t, max_node_index);
+                    //
+                    
+                    /*if path.from == 0 && t == 0 {
+                        print_path(&path);
                     }*/
-                    let subpaths = get_correlated_paths(&path, graph.max_time);
-                    let subpaths = subpaths.iter().map(|subpath| {
-                        SubPath {
-                            from: subpath.from,
-                            to: subpath.to,
-                            time_start: subpath.time_start + t,
-                            total_length: subpath.total_length,
-                        }
-                    }).collect::<Vec<_>>();
-                    for subpath in &subpaths {
-                        let (from, to, time_start, total_length) = (subpath.from, subpath.to, subpath.time_start, subpath.total_length);
-                        if total_length == u32::MAX {
+                    /*let sum = path.steps.iter().map(|(_, w, _)| w).sum::<u32>();
+                    // TODO TAG PROUT
+                    if sum + t as u32 > graph.max_time as u32 {
+                        graph.dst_mat_del[t as usize][i][j] = u32::MAX;
+                        continue;
+                    }
+                    graph.dst_mat_del[t as usize][i][j] = sum;*/
+                    if path.steps.is_empty() {
+                        graph.dst_mat_del[t as usize][i][j] = u32::MAX;
+                        continue;
+                    }
+                    let mut sum = 0;
+                    for (from, weight, to) in &path.steps {
+                        sum += *weight;
+                        //println!("{} --{}-> {}, sum : {}", from, weight, to, sum);
+                        if sum + t as u32 >= graph.max_time as u32 {
+                            graph.dst_mat_del[t as usize][i][j] = u32::MAX;
                             continue;
                         }
-                        graph.dst_mat_del[t as usize][from as usize][to as usize] = total_length;
-                    }    
+                        graph.dst_mat_del[sum as usize + t as usize][path.from as usize][*to as usize] = sum as u32;
+                    }
+                    graph.dst_mat_del[t as usize][path.from as usize][path.to as usize] = sum as u32;
+                    
                 }
                 // Remove the distance if it is too high
                 // TODO TAG PROUT
@@ -919,7 +916,7 @@ fn main() {
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 200;*/
 
-    let nb_nodes = 10;
+    let nb_nodes = 100;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -933,7 +930,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;
+    let max_time = 20;
 
     /*let edges = vec![
             Edge {
@@ -970,9 +967,12 @@ fn main() {
     let mut annex_graph= graph_to_temporal(&graph, max_time, &deleted_edges);
     //print_graph(&graph);
     // print_timegraph(&time_graph);
-    print_annex_graph(&annex_graph);
+    //print_annex_graph(&annex_graph);
 
-    benchmark!("recompute_all_distance_matrix", recompute_all_distance_matrix(&mut annex_graph));
+    let start = std::time::Instant::now();
+    recompute_all_distance_matrix(&mut annex_graph);
+    let duration = start.elapsed();
+    println!("Time elapsed in recompute_all_distance_matrix() is: {:?}", duration);
     let (sum, reachables) = sum_dma(&annex_graph.dst_mat_del, 20);
     println!("Sum of 1/distance is : {}", sum);
     println!("Reachables : {}", reachables);

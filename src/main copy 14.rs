@@ -1,3 +1,5 @@
+// NOTE : CA MARCHE A PEU PRES, MAIS ON AVANCE
+
 type Node = u64;
 type Weight = u32;
 
