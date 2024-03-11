@@ -4,6 +4,7 @@ type Weight = u32;
 use std::{ops::Sub, time};
 
 use fibonacii_heap::Heap;
+use rayon::vec;
 
 
 macro_rules! benchmark {
@@ -275,6 +276,7 @@ struct CorrelatedPathsTwo {
     subpaths: Vec<SubPath>,
 }
 
+
 // Takes 160us for a path of 200 steps, so very very good, considering that its not optimized at all
 // And all it gives us (n² - n) / 2 paths, so it's worth it i think
 /*fn get_correlated_paths(path: &Path, max_time: u64, dst_mat: &DistanceMatrix) -> Vec<SubPath> {
@@ -379,8 +381,125 @@ fn get_correlated_paths(path: &Path, max_time: u64) -> Vec<SubPath> {
             total_length: if *sum <= max_time as u32 { *sum } else { u32::MAX },
         });
     }
+
+    let tree = get_correlated_paths_tree(path, max_time);
+
+    //println!("Tree : {:?}", tree.fields);
+
+    //println!("{:?}", subpaths);
     
     return subpaths;
+}
+
+
+// Perfect balanced Binary Tree
+/*
+Node 0 : sons = 1 2
+Node 1 : sons = 3 4
+Node 2 : sons = 4 5
+*/
+struct MergedPathTree {
+    fields : Vec<SubPath>
+}
+
+impl MergedPathTree {
+
+    fn get_prof(idx : usize) -> usize {
+        //stack exchange get inverse of formula for sum of intergers from 1 to n?
+        return (((2 * idx) as f64 + 0.25).sqrt() - 0.5) as usize + 1;
+    }
+
+    fn get_idx_left_son(idx : usize) -> usize {
+        return idx + Self::get_prof(idx);
+    }
+
+    fn get_idx_right_son(idx : usize) -> usize {
+        return Self::get_idx_left_son(idx) + 1;
+    }
+
+    fn get_range(prof : usize) -> (usize, usize) {
+        if prof == 0 {
+            return (0,0)
+        }
+        let truc = ((prof + 1) * prof) / 2;
+        return (truc - prof, truc - 1);
+    }
+}
+
+fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
+    if path.steps.is_empty() {
+        return MergedPathTree {
+            fields : vec![]
+        }
+    }
+    let nb_elems = (path.steps.len() * (path.steps.len() + 1)) / 2;
+    let mut elems = vec![ SubPath {
+        from : 0,
+        to : 0,
+        time_start : 0,
+        total_length : 0,
+    } ; nb_elems];
+    //println!("{:?}", path);
+    let leaf_index = ((path.steps.len() - 1) * (path.steps.len()))/ 2;
+    //println!("Leaf start {}", leaf_index);
+    for (i, step) in path.steps.iter().enumerate() {
+        //println!("elems[{}] = {:?}", leaf_index + i, step);
+        elems[leaf_index + i] = SubPath {
+            from : step.0,
+            to : step.2,
+            time_start : 0,
+            total_length : step.1
+        };
+    }
+    for p in (0..MergedPathTree::get_prof(leaf_index)-1).rev() {
+        let (minr, maxr) = MergedPathTree::get_range(p+1);
+        for i in minr..=maxr {
+            let il = MergedPathTree::get_idx_left_son(i);
+            let ir = MergedPathTree::get_idx_right_son(i);
+
+            let shared = MergedPathTree::get_idx_left_son(ir);
+            let shared_len = if shared < nb_elems {
+                elems[shared].total_length
+            } else {
+                0
+            };
+            let left = &elems[il];
+            let right = &elems[ir];
+            //println!("left {} + right {} - shared {} with len {}", left.total_length, right.total_length, shared, shared_len);
+            let new_path = SubPath {
+                from : left.from,
+                to : right.to,
+                time_start : 0,
+                // TODO : fix that because they get doubled up
+                total_length : (left.total_length + right.total_length) - shared_len
+            };
+            //println!("elems[{i}] = {new_path:?} = {il} + {ir}");
+            elems[i] = new_path;
+        }
+    }
+
+    //println!("Done {:?}", elems);
+    
+    return MergedPathTree {
+        fields : elems
+    }
+}
+
+fn invalidate_path_tree(paths: &Vec<MergedPathTree>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
+    for path in paths {
+        let tree = &path.fields;
+        // go through the leaves, if they're deleted, invalidate them and their parents
+        for i in 0..tree.len() {
+            let subpath = &tree[i];
+            if subpath.total_length == u32::MAX {
+                let mut idx = i;
+                while idx > 0 {
+                    dst_mat_del[subpath.time_start as usize][subpath.from as usize][subpath.to as usize] = 0;
+                    idx = (idx - 1) / 2;
+                }
+            }
+        }
+    }
 }
 
 fn johnson(graph: &Graph, max_time: u64) -> (Vec<CorrelatedPaths>, DistanceMatrix) {
@@ -651,14 +770,14 @@ fn invalidate_deleted_edges_new(paths: &Vec<CorrelatedPathsTwo>, deleted_edges: 
                 if deleted_edges.links[*from as usize][*to as usize].contains(&t) {
                     // invalidate the distance matrix
                     let subpaths = &path.subpaths;
-                    for t in 0..max_time {
+                    //for t in 0..max_time {
                         for subpath in subpaths {
                             if subpath.total_length == u32::MAX {
                                 continue;
                             }
                             dst_mat_del[t as usize][subpath.from as usize][subpath.to as usize] = 0;
                         }
-                    }
+                    //}
                     break;
                 }
             }
@@ -890,7 +1009,7 @@ fn sum_dma(dma : &Vec<DistanceMatrix>, max_time: u64) -> (f64, u64) {
 
 fn main() {
     
-    /*let nb_nodes = 500;
+    /*let nb_nodes = 200;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -898,9 +1017,122 @@ fn main() {
             weight: 1,
         }
     }).collect();
-    let deleted_edges = vec![(0, 1, 0), (0, 1, 1), (5, 6, 0), (7, 8, 14), (8, 9, 14), (9, 10, 8), (10, 11, 2), (11, 12, 0), (22, 23, 0), (55, 56, 12), (56, 57, 12), (57, 58, 12), (58, 59, 12), (59, 60, 12), (60, 61, 12), (61, 62, 12), (62, 63, 12), (63, 64, 12), (64, 65, 12), (65, 66, 12), (66, 67, 12), (67, 68, 12), (68, 69, 45), (69, 70, 12), (70, 71, 73), (71, 72, 112), (72, 73, 12), (73, 74, 12), (74, 75, 12)];
+    //let deleted_edges = vec![(0, 1, 0), (0, 1, 1), (5, 6, 0), (7, 8, 14), (8, 9, 14), (9, 10, 8), (10, 11, 2), (11, 12, 0), (22, 23, 0), (55, 56, 12), (56, 57, 12), (57, 58, 12), (58, 59, 12), (59, 60, 12), (60, 61, 12), (61, 62, 12), (62, 63, 12), (63, 64, 12), (64, 65, 12), (65, 66, 12), (66, 67, 12), (67, 68, 12), (68, 69, 45), (69, 70, 12), (70, 71, 73), (71, 72, 112), (72, 73, 12), (73, 74, 12), (74, 75, 12)];
+    let deleted_edges = vec![DeletedLink {
+        from: 0,
+        to: 1,
+        times: vec![0, 1],
+    }, DeletedLink {
+        from: 5,
+        to: 6,
+        times: vec![0],
+    }, DeletedLink {
+        from: 7,
+        to: 8,
+        times: vec![14],
+    }, DeletedLink {
+        from: 8,
+        to: 9,
+        times: vec![14],
+    }, DeletedLink {
+        from: 9,
+        to: 10,
+        times: vec![8],
+    }, DeletedLink {
+        from: 10,
+        to: 11,
+        times: vec![2],
+    }, DeletedLink {
+        from: 11,
+        to: 12,
+        times: vec![0],
+    }, DeletedLink {
+        from: 22,
+        to: 23,
+        times: vec![0],
+    }, DeletedLink {
+        from: 55,
+        to: 56,
+        times: vec![12],
+    }, DeletedLink {
+        from: 56,
+        to: 57,
+        times: vec![12],
+    }, DeletedLink {
+        from: 57,
+        to: 58,
+        times: vec![12],
+    }, DeletedLink {
+        from: 58,
+        to: 59,
+        times: vec![12],
+    }, DeletedLink {
+        from: 59,
+        to: 60,
+        times: vec![12],
+    }, DeletedLink {
+        from: 60,
+        to: 61,
+        times: vec![12],
+    }, DeletedLink {
+        from: 61,
+        to: 62,
+        times: vec![12],
+    }, DeletedLink {
+        from: 62,
+        to: 63,
+        times: vec![12],
+    }, DeletedLink {
+        from: 63,
+        to: 64,
+        times: vec![12],
+    }, DeletedLink {
+        from: 64,
+        to: 65,
+        times: vec![12],
+    }, DeletedLink {
+        from: 65,
+        to: 66,
+        times: vec![12],
+    }, DeletedLink {
+        from: 66,
+        to: 67,
+        times: vec![12],
+    }, DeletedLink {
+        from: 67,
+        to: 68,
+        times: vec![12],
+    }, DeletedLink {
+        from: 68,
+        to: 69,
+        times: vec![45],
+    }, DeletedLink {
+        from: 69,
+        to: 70,
+        times: vec![12],
+    }, DeletedLink {
+        from: 70,
+        to: 71,
+        times: vec![73],
+    }, DeletedLink {
+        from: 71,
+        to: 72,
+        times: vec![112],
+    }, DeletedLink {
+        from: 72,
+        to: 73,
+        times: vec![12],
+    }, DeletedLink {
+        from: 73,
+        to: 74,
+        times: vec![12],
+    }, DeletedLink {
+        from: 74,
+        to: 75,
+        times: vec![12],
+    }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 200;*/
+    let max_time = 50;*/
 
     /*let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
@@ -916,9 +1148,9 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;*/
+    let max_time = 5;
 
-    let edges = vec![
+    /*let edges = vec![
             Edge {
                 from: 0,
                 to: 1,
@@ -941,7 +1173,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = vec![(0, vec![(1, 1), (2, 1)]), (1, vec![]), (2, vec![(1, 1)])];
-    let max_time = 6;
+    let max_time = 6;*/
 
 
     let max_node_index = edges.iter().map(|e| e.from.max(e.to)).max().unwrap() + 1;
@@ -966,6 +1198,23 @@ fn main() {
     println!("Sum of 1/distance is : {}", sum);
     println!("Reachables : {}", reachables);
     print_annex_graph(&annex_graph);
+
+    let merged = MergedPathTree {
+        fields : Vec::new()
+    };*/
+
+    for i in 0..15 {
+        println!("{} | {} : {} {}",MergedPathTree::get_prof(i), i, MergedPathTree::get_idx_left_son(i), MergedPathTree::get_idx_right_son(i));
+    }
+
+    let path = Path {
+        from : 0,
+        to : 5,
+        steps : vec![(0,1,1), (1,1,2), (2,1,3), (3,1,4), (4,1,5)]
+    };
+    print_path(&path);
+    let tree = get_correlated_paths_tree(&path, 10);
+    println!("tree : {:?}",&tree.fields);
 
     /*let from = 0;
     let to = 20;

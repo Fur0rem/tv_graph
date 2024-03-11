@@ -1,0 +1,45 @@
+1 | 0 : 1 2
+2 | 1 : 3 4
+2 | 2 : 4 5
+3 | 3 : 6 7
+3 | 4 : 7 8
+3 | 5 : 8 9
+4 | 6 : 10 11
+4 | 7 : 11 12
+4 | 8 : 12 13
+4 | 9 : 13 14
+5 | 10 : 15 16
+5 | 11 : 16 17
+5 | 12 : 17 18
+5 | 13 : 18 19
+5 | 14 : 19 20
+0 --5-> 5 : 0--1->1|1--1->2|2--1->3|3--1->4|4--1->5|
+Path { from: 0, to: 5, steps: [(0, 1, 1), (1, 1, 2), (2, 1, 3), (3, 1, 4), (4, 1, 5)] }
+Leaf start 10
+elems[10] = (0, 1, 1)
+elems[11] = (1, 1, 2)
+elems[12] = (2, 1, 3)
+elems[13] = (3, 1, 4)
+elems[14] = (4, 1, 5)
+left 1 + right 1 - shared 16 with len 0
+elems[6] = SubPath { from: 0, to: 2, time_start: 0, total_length: 2 } = 10 + 11
+left 1 + right 1 - shared 17 with len 0
+elems[7] = SubPath { from: 1, to: 3, time_start: 0, total_length: 2 } = 11 + 12
+left 1 + right 1 - shared 18 with len 0
+elems[8] = SubPath { from: 2, to: 4, time_start: 0, total_length: 2 } = 12 + 13
+left 1 + right 1 - shared 19 with len 0
+elems[9] = SubPath { from: 3, to: 5, time_start: 0, total_length: 2 } = 13 + 14
+left 2 + right 2 - shared 11 with len 1
+elems[3] = SubPath { from: 0, to: 3, time_start: 0, total_length: 3 } = 6 + 7
+left 2 + right 2 - shared 12 with len 1
+elems[4] = SubPath { from: 1, to: 4, time_start: 0, total_length: 3 } = 7 + 8
+left 2 + right 2 - shared 13 with len 1
+elems[5] = SubPath { from: 2, to: 5, time_start: 0, total_length: 3 } = 8 + 9
+left 3 + right 3 - shared 7 with len 2
+elems[1] = SubPath { from: 0, to: 4, time_start: 0, total_length: 4 } = 3 + 4
+left 3 + right 3 - shared 8 with len 2
+elems[2] = SubPath { from: 1, to: 5, time_start: 0, total_length: 4 } = 4 + 5
+left 4 + right 4 - shared 4 with len 3
+elems[0] = SubPath { from: 0, to: 5, time_start: 0, total_length: 5 } = 1 + 2
+Done [SubPath { from: 0, to: 5, time_start: 0, total_length: 5 }, SubPath { from: 0, to: 4, time_start: 0, total_length: 4 }, SubPath { from: 1, to: 5, time_start: 0, total_length: 4 }, SubPath { from: 0, to: 3, time_start: 0, total_length: 3 }, SubPath { from: 1, to: 4, time_start: 0, total_length: 3 }, SubPath { from: 2, to: 5, time_start: 0, total_length: 3 }, SubPath { from: 0, to: 2, time_start: 0, total_length: 2 }, SubPath { from: 1, to: 3, time_start: 0, total_length: 2 }, SubPath { from: 2, to: 4, time_start: 0, total_length: 2 }, SubPath { from: 3, to: 5, time_start: 0, total_length: 2 }, SubPath { from: 0, to: 1, time_start: 0, total_length: 1 }, SubPath { from: 1, to: 2, time_start: 0, total_length: 1 }, SubPath { from: 2, to: 3, time_start: 0, total_length: 1 }, SubPath { from: 3, to: 4, time_start: 0, total_length: 1 }, SubPath { from: 4, to: 5, time_start: 0, total_length: 1 }]
+tree : [SubPath { from: 0, to: 5, time_start: 0, total_length: 5 }, SubPath { from: 0, to: 4, time_start: 0, total_length: 4 }, SubPath { from: 1, to: 5, time_start: 0, total_length: 4 }, SubPath { from: 0, to: 3, time_start: 0, total_length: 3 }, SubPath { from: 1, to: 4, time_start: 0, total_length: 3 }, SubPath { from: 2, to: 5, time_start: 0, total_length: 3 }, SubPath { from: 0, to: 2, time_start: 0, total_length: 2 }, SubPath { from: 1, to: 3, time_start: 0, total_length: 2 }, SubPath { from: 2, to: 4, time_start: 0, total_length: 2 }, SubPath { from: 3, to: 5, time_start: 0, total_length: 2 }, SubPath { from: 0, to: 1, time_start: 0, total_length: 1 }, SubPath { from: 1, to: 2, time_start: 0, total_length: 1 }, SubPath { from: 2, to: 3, time_start: 0, total_length: 1 }, SubPath { from: 3, to: 4, time_start: 0, total_length: 1 }, SubPath { from: 4, to: 5, time_start: 0, total_length: 1 }]
