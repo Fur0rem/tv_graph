@@ -506,7 +506,11 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
 
 fn invalidate_node_and_parents(idx : usize, tree : &MergedPathTree, dst_mat_del: &mut Vec<DistanceMatrix>, max_time: u64) {
     for t in 0..max_time {
-        dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize] = 0;
+        let old_val = dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize];
+        if old_val != u32::MAX {
+            //println!("Invalidating path from {} to {} at time {} with total length {}", tree.fields[idx].from, tree.fields[idx].to, t, tree.fields[idx].total_length);
+            dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize] = 0;
+        }
     }
     let (left_parent, right_parent) = MergedPathTree::get_idx_parents(idx);
     if let Some(left_parent) = left_parent {
@@ -525,13 +529,10 @@ fn invalidate_path_tree(paths: &Vec<MergedPathTree>, deleted_edges: &DeletedLink
         //println!("Leaf min index {} and max index {}", leaf_min_index, leaf_max_index);
         for i in leaf_min_index..=leaf_max_index {
             let subpath = &path.fields[i];
-            if subpath.total_length == u32::MAX {
-                continue;
-            }
             for t in 0..max_time {
                 if deleted_edges.links[subpath.from as usize][subpath.to as usize].contains(&t) {
                     // invalidate the distance matrix
-                    dst_mat_del[t as usize][subpath.from as usize][subpath.to as usize] = 0;
+                    //println!("Invalidating path from {} to {} at time {} with total length {}", subpath.from, subpath.to, t, subpath.total_length);
                     invalidate_node_and_parents(i, path, dst_mat_del, max_time);
                     break;
                 }
@@ -631,6 +632,7 @@ fn new_johnson(graph: &Graph, max_time: u64) -> (DistanceMatrix, Vec<CorrelatedP
             print_matrix(&dst_mat);
         }*/
     }
+
     return (dst_mat, paths);
         //print_matrix(&dst_mat);
     //}
@@ -682,6 +684,10 @@ fn newer_johnson(graph: &Graph, max_time: u64) -> (DistanceMatrix, Vec<MergedPat
                 /*if (path.from == 1 && path.to == 30) {
                     println!("Subpath from {} to {} at time {} with total length {}", from, to, time_start, total_length);
                 }*/
+                if (total_length > max_time as u32) {
+                    dst_mat[from as usize][to as usize] = u32::MAX;
+                    continue;
+                }
                 if dst_mat[from as usize][to as usize] == 0 {
                     dst_mat[from as usize][to as usize] = total_length;
                 } else {
