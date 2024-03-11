@@ -417,6 +417,25 @@ impl MergedPathTree {
         return Self::get_idx_left_son(idx) + 1;
     }
 
+    fn get_idx_parents(idx : usize) -> (Option<usize>, Option<usize>) {
+        if idx == 0 {
+            return (None, None);
+        }
+        let prof = Self::get_prof(idx);
+        let (minr, maxr) = Self::get_range(prof);
+        let left_parent = if idx == minr {
+            None
+        } else {
+            Some(idx - prof)
+        };
+        let right_parent = if idx == maxr {
+            None
+        } else {
+            Some(idx - prof + 1)
+        };
+        return (left_parent, right_parent);
+    }
+
     fn get_range(prof : usize) -> (usize, usize) {
         if prof == 0 {
             return (0,0)
@@ -485,17 +504,36 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
     }
 }
 
+fn invalidate_node_and_parents(idx : usize, tree : &MergedPathTree, dst_mat_del: &mut Vec<DistanceMatrix>, max_time: u64) {
+    for t in 0..max_time {
+        dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize] = 0;
+    }
+    let (left_parent, right_parent) = MergedPathTree::get_idx_parents(idx);
+    if let Some(left_parent) = left_parent {
+        //println!("Invalidating left parent {}", left_parent);
+        invalidate_node_and_parents(left_parent, tree, dst_mat_del, max_time);
+    }
+    if let Some(right_parent) = right_parent {
+        //println!("Invalidating right parent {}", right_parent);
+        invalidate_node_and_parents(right_parent, tree, dst_mat_del, max_time);
+    }
+}
 fn invalidate_path_tree(paths: &Vec<MergedPathTree>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
     for path in paths {
-        let tree = &path.fields;
-        // go through the leaves, if they're deleted, invalidate them and their parents
-        for i in 0..tree.len() {
-            let subpath = &tree[i];
+        //println!("Invalidating path {:?}", path.fields);
+        let (leaf_min_index, leaf_max_index) = MergedPathTree::get_range(MergedPathTree::get_prof(path.fields.len()-1));
+        //println!("Leaf min index {} and max index {}", leaf_min_index, leaf_max_index);
+        for i in leaf_min_index..=leaf_max_index {
+            let subpath = &path.fields[i];
             if subpath.total_length == u32::MAX {
-                let mut idx = i;
-                while idx > 0 {
-                    dst_mat_del[subpath.time_start as usize][subpath.from as usize][subpath.to as usize] = 0;
-                    idx = (idx - 1) / 2;
+                continue;
+            }
+            for t in 0..max_time {
+                if deleted_edges.links[subpath.from as usize][subpath.to as usize].contains(&t) {
+                    // invalidate the distance matrix
+                    dst_mat_del[t as usize][subpath.from as usize][subpath.to as usize] = 0;
+                    invalidate_node_and_parents(i, path, dst_mat_del, max_time);
+                    break;
                 }
             }
         }
@@ -586,6 +624,77 @@ fn new_johnson(graph: &Graph, max_time: u64) -> (DistanceMatrix, Vec<CorrelatedP
                 main_path: path,
                 subpaths,
             });
+        }
+        // TODO : si path pas trouvé, alors mettre a infini
+        println!("Dijkstras done for node {} : {}", node, nb_dijkstras_done);
+        /*if (*node < 5) {
+            print_matrix(&dst_mat);
+        }*/
+    }
+    return (dst_mat, paths);
+        //print_matrix(&dst_mat);
+    //}
+    //return dst_mat;
+}
+
+// Todo : j'ai l'impression que c'est moins rapide tf?
+fn newer_johnson(graph: &Graph, max_time: u64) -> (DistanceMatrix, Vec<MergedPathTree>) {
+    let mut dst_mat = vec![vec![0; graph.max_node_index as usize]; graph.max_node_index as usize];
+    for i in 0..graph.max_node_index {
+        for j in 0..graph.max_node_index {
+            if i == j {
+                dst_mat[i as usize][j as usize] = 1;
+            }
+        }
+    }
+    let mut paths = vec![];
+    for (node, _) in &graph.nodes {
+        let mut nb_dijkstras_done = 0;
+        for (node2, _) in graph.nodes.iter() {
+            if node == node2 {
+                continue;
+            }
+            if dst_mat[*node as usize][*node2 as usize] != 0 {
+                continue;
+            }
+            nb_dijkstras_done += 1;
+            let path = dijkstra(graph, *node, *node2, max_time, &mut dst_mat);
+            if path.steps.is_empty() {
+                dst_mat[*node as usize][*node2 as usize] = u32::MAX;
+                continue;
+            }
+            /*dst_mat[*node as usize][*node2 as usize] = {
+                let sum = path.steps.iter().map(|(_, w, _)| w).sum::<u32>();
+                if sum <= max_time as u32 {
+                    sum
+                } else {
+                    u32::MAX
+                }
+            };*/
+            /*if (path.from == 1 && path.to == 30) {
+                println!("{:?}", path);
+                let subpaths = get_correlated_paths(&path, max_time, &dst_mat);
+                println!("{:?}", subpaths);
+            }*/
+            let subpaths = get_correlated_paths_tree(&path, max_time);
+            for subpath in &subpaths.fields {
+                let (from, to, time_start, total_length) = (subpath.from, subpath.to, subpath.time_start, subpath.total_length);
+                /*if (path.from == 1 && path.to == 30) {
+                    println!("Subpath from {} to {} at time {} with total length {}", from, to, time_start, total_length);
+                }*/
+                if dst_mat[from as usize][to as usize] == 0 {
+                    dst_mat[from as usize][to as usize] = total_length;
+                } else {
+                    // FIXME : en soit est ce qu'on a besoin de faire min ici? Si c'est le cas, alors on a un bug
+                    if total_length != dst_mat[from as usize][to as usize] {
+                        println!("Subpath from {} to {} at time {} with total length {}", from, to, time_start, total_length);
+                        println!("Old value : {}", dst_mat[from as usize][to as usize]);
+                        println!("New value : {}", total_length);
+                    }
+                    dst_mat[from as usize][to as usize] = std::cmp::min(dst_mat[from as usize][to as usize], total_length);
+                }
+            }
+            paths.push(subpaths);
         }
         // TODO : si path pas trouvé, alors mettre a infini
         println!("Dijkstras done for node {} : {}", node, nb_dijkstras_done);
@@ -787,7 +896,7 @@ fn invalidate_deleted_edges_new(paths: &Vec<CorrelatedPathsTwo>, deleted_edges: 
 
 fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLink>) -> AnnexTimeVaryingGraph {
     let mut edges : Vec<TimeVaryingEdge> = vec![];
-    let (mut dst_mat_undel, paths) = benchmark!("new johnson", new_johnson(graph, max_time));
+    let (mut dst_mat_undel, paths) = benchmark!("newer johnson", newer_johnson(graph, max_time));
     //let (paths,_) = benchmark!("johnson", johnson(graph, max_time));
     //let mut dst_mat_undel = benchmark!("from_corr_paths", from_shortest_corr_paths(&paths, &graph.nodes, graph.max_node_index, max_time, deleted_edges));
     print_matrix(&dst_mat_undel);
@@ -811,8 +920,7 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
         deleted_edges_matrix
     });
 
-    benchmark!("invalidate_deleted_edges", invalidate_deleted_edges_new(&paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
-
+    benchmark!("invalidate_deleted_edges", invalidate_path_tree(&paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
     println!("Annex edges : {:?}", annex_edges);
 
     return AnnexTimeVaryingGraph {
@@ -822,8 +930,8 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
         dst_mat_undel,
         dst_mat_del,
     };
-
 }
+
 
 fn print_timegraph(graph: &TimeVaryingGraph) {
     println!("Time graph with max time : {}", graph.max_time);
@@ -1134,7 +1242,7 @@ fn main() {
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 50;*/
 
-    /*let nb_nodes = 10;
+    let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1143,8 +1251,8 @@ fn main() {
         }
     }).collect();
     let deleted_edges = vec![DeletedLink {
-        from: 0,
-        to: 1,
+        from: 1,
+        to: 2,
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
@@ -1191,6 +1299,7 @@ fn main() {
     let mut annex_graph= graph_to_temporal(&graph, max_time, &deleted_edges);
     //print_graph(&graph);
     // print_timegraph(&time_graph);
+    println!("Graph with invalidation");
     print_annex_graph(&annex_graph);
 
     benchmark!("recompute_all_distance_matrix", recompute_all_distance_matrix(&mut annex_graph));
@@ -1199,9 +1308,9 @@ fn main() {
     println!("Reachables : {}", reachables);
     print_annex_graph(&annex_graph);
 
-    let merged = MergedPathTree {
+    /*let merged = MergedPathTree {
         fields : Vec::new()
-    };*/
+    };
 
     for i in 0..15 {
         println!("{} | {} : {} {}",MergedPathTree::get_prof(i), i, MergedPathTree::get_idx_left_son(i), MergedPathTree::get_idx_right_son(i));
@@ -1214,7 +1323,7 @@ fn main() {
     };
     print_path(&path);
     let tree = get_correlated_paths_tree(&path, 10);
-    println!("tree : {:?}",&tree.fields);
+    println!("tree : {:?}",&tree.fields);*/
 
     /*let from = 0;
     let to = 20;
