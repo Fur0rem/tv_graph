@@ -504,7 +504,10 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
     }
 }
 
-fn invalidate_node_and_parents(idx : usize, tree : &MergedPathTree, dst_mat_del: &mut Vec<DistanceMatrix>, max_time: u64) {
+fn invalidate_node_and_parents(idx : usize, tree : &mut MergedPathTree, dst_mat_del: &mut Vec<DistanceMatrix>, max_time: u64) {
+    if tree.fields[idx].total_length == u32::MAX {
+        return;
+    }
     for t in 0..max_time {
         let old_val = dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize];
         if old_val != u32::MAX {
@@ -512,6 +515,7 @@ fn invalidate_node_and_parents(idx : usize, tree : &MergedPathTree, dst_mat_del:
             dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize] = 0;
         }
     }
+    tree.fields[idx].total_length = u32::MAX;
     let (left_parent, right_parent) = MergedPathTree::get_idx_parents(idx);
     if let Some(left_parent) = left_parent {
         //println!("Invalidating left parent {}", left_parent);
@@ -522,7 +526,8 @@ fn invalidate_node_and_parents(idx : usize, tree : &MergedPathTree, dst_mat_del:
         invalidate_node_and_parents(right_parent, tree, dst_mat_del, max_time);
     }
 }
-fn invalidate_path_tree(paths: &Vec<MergedPathTree>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
+fn invalidate_path_tree(paths: &mut Vec<MergedPathTree>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
+    //let mut i = 0;
     for path in paths {
         //println!("Invalidating path {:?}", path.fields);
         let (leaf_min_index, leaf_max_index) = MergedPathTree::get_range(MergedPathTree::get_prof(path.fields.len()-1));
@@ -538,6 +543,8 @@ fn invalidate_path_tree(paths: &Vec<MergedPathTree>, deleted_edges: &DeletedLink
                 }
             }
         }
+        //i += 1;
+        //println!("Invalidated path {}", i);
     }
 }
 
@@ -902,7 +909,7 @@ fn invalidate_deleted_edges_new(paths: &Vec<CorrelatedPathsTwo>, deleted_edges: 
 
 fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLink>) -> AnnexTimeVaryingGraph {
     let mut edges : Vec<TimeVaryingEdge> = vec![];
-    let (mut dst_mat_undel, paths) = benchmark!("newer johnson", newer_johnson(graph, max_time));
+    let (mut dst_mat_undel, mut paths) = benchmark!("newer johnson", newer_johnson(graph, max_time));
     //let (paths,_) = benchmark!("johnson", johnson(graph, max_time));
     //let mut dst_mat_undel = benchmark!("from_corr_paths", from_shortest_corr_paths(&paths, &graph.nodes, graph.max_node_index, max_time, deleted_edges));
     print_matrix(&dst_mat_undel);
@@ -926,7 +933,7 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
         deleted_edges_matrix
     });
 
-    benchmark!("invalidate_deleted_edges", invalidate_path_tree(&paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
+    benchmark!("invalidate_deleted_edges", invalidate_path_tree(&mut paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
     println!("Annex edges : {:?}", annex_edges);
 
     return AnnexTimeVaryingGraph {
@@ -1123,7 +1130,7 @@ fn sum_dma(dma : &Vec<DistanceMatrix>, max_time: u64) -> (f64, u64) {
 
 fn main() {
     
-    /*let nb_nodes = 200;
+    let nb_nodes = 200;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1246,9 +1253,9 @@ fn main() {
         times: vec![12],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 50;*/
+    let max_time = 50;
 
-    let nb_nodes = 10;
+    /*let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1262,7 +1269,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;
+    let max_time = 5;*/
 
     /*let edges = vec![
             Edge {
