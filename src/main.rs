@@ -6,6 +6,7 @@ use std::{ops::Sub, time};
 use fibonacii_heap::Heap;
 use rayon::vec;
 
+use primitive_types::U256;
 
 macro_rules! benchmark {
     ($name:expr, $block:expr) => {{
@@ -89,8 +90,14 @@ struct DeletedLink {
     times: Vec<u64>,
 }
 
+struct DeletedLinkBitMask {
+    from: Node,
+    to: Node,
+    times: U256,
+}
+
 struct DeletedLinksMatrix {
-    links: Vec<Vec<Vec<u64>>>
+    links: Vec<Vec<U256>>
 }
 
 /*fn dijkstra(graph: &Graph, start: Node, end: Node, max_time: u64) -> Path {
@@ -422,16 +429,20 @@ impl MergedPathTree {
             return (None, None);
         }
         let prof = Self::get_prof(idx);
+        /*if prof > idx {
+            println!("prof is {}, idx is {}", prof, idx);
+            panic!("prof is greater than idx");
+        }*/
         let (minr, maxr) = Self::get_range(prof);
         let left_parent = if idx == minr {
             None
         } else {
-            Some(idx - prof)
+            Some(idx - (prof-1))
         };
         let right_parent = if idx == maxr {
             None
         } else {
-            Some(idx - prof + 1)
+            Some(idx - (prof-1) + 1)
         };
         return (left_parent, right_parent);
     }
@@ -535,7 +546,8 @@ fn invalidate_path_tree(paths: &mut Vec<MergedPathTree>, deleted_edges: &Deleted
         for i in leaf_min_index..=leaf_max_index {
             let subpath = &path.fields[i];
             for t in 0..max_time {
-                if deleted_edges.links[subpath.from as usize][subpath.to as usize].contains(&t) {
+                //if deleted_edges.links[subpath.from as usize][subpath.to as usize].contains(&t) {
+                if deleted_edges.links[subpath.from as usize][subpath.to as usize] & (U256::one() << t) != U256::zero() {
                     // invalidate the distance matrix
                     //println!("Invalidating path from {} to {} at time {} with total length {}", subpath.from, subpath.to, t, subpath.total_length);
                     invalidate_node_and_parents(i, path, dst_mat_del, max_time);
@@ -867,7 +879,7 @@ fn invalidate_deleted_edges(paths: &Vec<CorrelatedPaths>, deleted_edges: &Delete
         for i in 0..main_path.steps.len() {
             let (from, weight, to) = &main_path.steps[i];
             for t in 0..max_time {
-                if deleted_edges.links[*from as usize][*to as usize].contains(&t) {
+                if deleted_edges.links[*from as usize][*to as usize] & (U256::one() << t) != U256::zero() {
                     // invalidate the distance matrix
                     let subpaths = &path.subpaths;
                     for t in 0..max_time {
@@ -889,7 +901,7 @@ fn invalidate_deleted_edges_new(paths: &Vec<CorrelatedPathsTwo>, deleted_edges: 
         for i in 0..main_path.steps.len() {
             let (from, weight, to) = &main_path.steps[i];
             for t in 0..max_time {
-                if deleted_edges.links[*from as usize][*to as usize].contains(&t) {
+                if deleted_edges.links[*from as usize][*to as usize] & (U256::one() << t) != U256::zero() {
                     // invalidate the distance matrix
                     let subpaths = &path.subpaths;
                     //for t in 0..max_time {
@@ -921,10 +933,10 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
     // TODO : yeah this is very space consuming, probably better to switch to a sparse matrix or hashmap
     let deleted_edges_matrix = benchmark!("deleted_edges_matrix", {
         let max_node_index = graph.nodes.iter().map(|(n, _)| n).max().unwrap() + 1;
-        let mut deleted_edges_matrix = vec![vec![vec![]; max_node_index as usize]; max_node_index as usize];
-        for deleted_link in deleted_edges {
-            for t in &deleted_link.times {
-                deleted_edges_matrix[deleted_link.from as usize][deleted_link.to as usize].push(*t);
+        let mut deleted_edges_matrix = vec![vec![U256::zero(); max_node_index as usize]; max_node_index as usize];
+        for deleted_edge in deleted_edges {
+            for t in &deleted_edge.times {
+                deleted_edges_matrix[deleted_edge.from as usize][deleted_edge.to as usize] |= U256::one() << *t;
             }
         }
         let deleted_edges_matrix = DeletedLinksMatrix {
@@ -995,6 +1007,10 @@ fn temporal_dijkstra(graph: &AnnexTimeVaryingGraph, start: Node, end: Node, max_
                 if dist[node as usize] == u32::MAX {
                     continue;
                 }
+                //println!("dist[node as usize] = {}, edge.weight[time as usize] = {}", dist[node as usize], edge.weight[time as usize]);
+                if edge.weight[time as usize] == u32::MAX {
+                    continue;
+                }
                 let alt = dist[node as usize] + edge.weight[time as usize];
                 if alt < dist[edge.to as usize] {
                     dist[edge.to as usize] = alt;
@@ -1035,6 +1051,10 @@ fn recompute_all_distance_matrix(graph: &mut AnnexTimeVaryingGraph) {
                     //println!("Recomputing distance from {} to {} at time {}", i, j, t);
                     // TODO : take adventage of the fact that we already have the shortest path from a bunch of other nodes
                     let path = temporal_dijkstra(graph, i as u64, j as u64, graph.max_time, t, max_node_index, &graph.dst_mat_del[t as usize]);
+                    if path.steps.is_empty() {
+                        graph.dst_mat_del[t as usize][i][j] = u32::MAX;
+                        continue;
+                    }
                     let subpaths = get_correlated_paths(&path, graph.max_time);
                     for subpath in &subpaths {
                         let (from, to, time_start, total_length) = (subpath.from, subpath.to, subpath.time_start, subpath.total_length);
@@ -1130,7 +1150,7 @@ fn sum_dma(dma : &Vec<DistanceMatrix>, max_time: u64) -> (f64, u64) {
 
 fn main() {
     
-    let nb_nodes = 200;
+    /*let nb_nodes = 200;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1253,7 +1273,7 @@ fn main() {
         times: vec![12],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 50;
+    let max_time = 50;*/
 
     /*let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
@@ -1271,7 +1291,7 @@ fn main() {
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 5;*/
 
-    /*let edges = vec![
+    let edges = vec![
             Edge {
                 from: 0,
                 to: 1,
@@ -1294,7 +1314,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = vec![(0, vec![(1, 1), (2, 1)]), (1, vec![]), (2, vec![(1, 1)])];
-    let max_time = 6;*/
+    let max_time = 6;
 
 
     let max_node_index = edges.iter().map(|e| e.from.max(e.to)).max().unwrap() + 1;
