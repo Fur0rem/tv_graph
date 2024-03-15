@@ -9,7 +9,7 @@ Dijkstras done for node 7 : 7
 Dijkstras done for node 8 : 8
 Dijkstras done for node 9 : 9
 Dijkstras done for node 10 : 10
-Time elapsed in newer johnson() is: 86.632µs
+Time elapsed in newer johnson() is: 92.142µs
 1, 1, 2, 3, 4, 5, ∞, ∞, ∞, ∞, ∞, 
 ∞, 1, 1, 2, 3, 4, 5, ∞, ∞, ∞, ∞, 
 ∞, ∞, 1, 1, 2, 3, 4, 5, ∞, ∞, ∞, 
@@ -21,10 +21,10 @@ Time elapsed in newer johnson() is: 86.632µs
 ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, 1, 1, 2, 
 ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, 1, 1, 
 ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, ∞, 1, 
-Time elapsed in create_phantom_edges() is: 1.253µs
-Time elapsed in deleted_edges_matrix() is: 2.395µs
+Time elapsed in create_phantom_edges() is: 1.322µs
+Time elapsed in deleted_edges_matrix() is: 2.245µs
 Deleted edges matrix : [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]
-Time elapsed in invalidate_deleted_edges() is: 7.123µs
+Time elapsed in invalidate_deleted_edges() is: 7.103µs
 Annex edges : [TimeVaryingEdge { from: 0, to: 1, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 1, to: 2, weight: [3, 2, 1, 1, 1] }, TimeVaryingEdge { from: 2, to: 3, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 3, to: 4, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 4, to: 5, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 5, to: 6, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 6, to: 7, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 7, to: 8, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 8, to: 9, weight: [1, 1, 1, 1, 1] }, TimeVaryingEdge { from: 9, to: 10, weight: [1, 1, 1, 1, 1] }]
 Graph with invalidation
 Annex graph with max time : 5
@@ -93,7 +93,7 @@ Time 1
 Time 2
 Time 3
 Time 4
-Time elapsed in recompute_all_distance_matrix() is: 53.661µs
+Time elapsed in recompute_all_distance_matrix() is: 53.711µs
 Sum of 1/distance is : 0.12254545454545455
 Reachables : 128
 Annex graph with max time : 5

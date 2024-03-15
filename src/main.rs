@@ -549,6 +549,15 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
             path.fields[right_parent].invalidated_at |= mask;
         }
 
+        // So... this is slower than the overflow method, so i guess i'll have to stick with the warcrime i did above
+        /*let mask = leaf_invalidated | (leaf_invalidated >> leaf_length as usize);
+        if let Some(left_parent) = left_parent {
+            path.fields[left_parent].invalidated_at |= mask;
+        }
+        if let Some(right_parent) = right_parent {
+            path.fields[right_parent].invalidated_at |= mask;
+        }*/
+
         // write 0 in the distance matrix
         for t in 0..max_time {
             if leaf_invalidated & (U256::one() << t) != U256::zero() {
@@ -1163,7 +1172,7 @@ fn sum_dma(dma : &Vec<DistanceMatrix>, max_time: u64) -> (f64, u64) {
 
 fn main() {
     
-    /*let nb_nodes = 200;
+    let nb_nodes = 200;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1286,9 +1295,9 @@ fn main() {
         times: vec![12],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 50;*/
+    let max_time = 50;
 
-    let nb_nodes = 10;
+    /*let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1302,7 +1311,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;
+    let max_time = 5;*/
 
     /*let edges = vec![
             Edge {
