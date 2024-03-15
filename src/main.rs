@@ -558,6 +558,20 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
             path.fields[right_parent].invalidated_at |= mask;
         }*/
 
+        // WHY THE SHIT I DID WITH THE UNSAFE MASK THE FASTEST
+        /*let other_mask = if leaf_length < 256 {
+            (leaf_invalidated >> leaf_length as usize)
+        } else {
+            U256::zero()
+        };
+        let mask = leaf_invalidated | other_mask;
+        if let Some(left_parent) = left_parent {
+            path.fields[left_parent].invalidated_at |= mask;
+        }
+        if let Some(right_parent) = right_parent {
+            path.fields[right_parent].invalidated_at |= mask;
+        }*/
+
         // write 0 in the distance matrix
         for t in 0..max_time {
             if leaf_invalidated & (U256::one() << t) != U256::zero() {
