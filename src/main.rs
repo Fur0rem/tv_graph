@@ -276,6 +276,7 @@ struct SubPath {
     to: Node,
     time_start: u64,
     total_length: u32,
+    invalidated_at: U256,
 }
 
 struct CorrelatedPathsTwo {
@@ -386,6 +387,7 @@ fn get_correlated_paths(path: &Path, max_time: u64) -> Vec<SubPath> {
             to: *to,
             time_start: *time as u64,
             total_length: if *sum <= max_time as u32 { *sum } else { u32::MAX },
+            invalidated_at: U256::zero(),
         });
     }
 
@@ -468,6 +470,7 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
         to : 0,
         time_start : 0,
         total_length : 0,
+        invalidated_at : U256::zero()
     } ; nb_elems];
     //println!("{:?}", path);
     let leaf_index = ((path.steps.len() - 1) * (path.steps.len()))/ 2;
@@ -478,7 +481,8 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
             from : step.0,
             to : step.2,
             time_start : 0,
-            total_length : step.1
+            total_length : step.1,
+            invalidated_at : U256::zero()
         };
     }
     for p in (0..MergedPathTree::get_prof(leaf_index)-1).rev() {
@@ -501,7 +505,8 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
                 to : right.to,
                 time_start : 0,
                 // TODO : fix that because they get doubled up
-                total_length : (left.total_length + right.total_length) - shared_len
+                total_length : (left.total_length + right.total_length) - shared_len,
+                invalidated_at : U256::zero()
             };
             //println!("elems[{i}] = {new_path:?} = {il} + {ir}");
             elems[i] = new_path;
@@ -515,48 +520,55 @@ fn get_correlated_paths_tree(path : &Path, max_time: u64) -> MergedPathTree {
     }
 }
 
-fn invalidate_node_and_parents(idx : usize, tree : &mut MergedPathTree, dst_mat_del: &mut Vec<DistanceMatrix>, max_time: u64) {
-    if tree.fields[idx].total_length == u32::MAX {
-        return;
-    }
-    for t in 0..max_time {
-        let old_val = dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize];
-        if old_val != u32::MAX {
-            //println!("Invalidating path from {} to {} at time {} with total length {}", tree.fields[idx].from, tree.fields[idx].to, t, tree.fields[idx].total_length);
-            dst_mat_del[t as usize][tree.fields[idx].from as usize][tree.fields[idx].to as usize] = 0;
+
+// FIXME : EWWWWWWWWWWWWW
+fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
+    // look at all the leaves, if they are invalidated, then invalidate the parent
+    let (minr, maxr) = MergedPathTree::get_range(layer);
+    for i in minr..=maxr {
+        let invalidated_at_matrix = deleted_edges.links[path.fields[i].from as usize][path.fields[i].to as usize];
+        path.fields[i].invalidated_at |= invalidated_at_matrix;
+        let (leaf_invalidated, leaf_length, (left_parent, right_parent)) = {
+            let leaf = &path.fields[i];
+            (leaf.invalidated_at, leaf.total_length, MergedPathTree::get_idx_parents(i))
+        };
+        let (leaf_from, leaf_to) = (path.fields[i].from, path.fields[i].to);
+        println!("Leaf from {} to {} with bitmask {:?}", leaf_from, leaf_to, leaf_invalidated);
+        if let Some(left_parent) = left_parent {
+            let left_invalidated = if (leaf_length as usize) < 256 {
+                path.fields[left_parent].invalidated_at | leaf_invalidated >> leaf_length as usize | leaf_invalidated
+            } else {
+                path.fields[left_parent].invalidated_at | leaf_invalidated
+            };
+            path.fields[left_parent].invalidated_at = left_invalidated;
         }
-    }
-    tree.fields[idx].total_length = u32::MAX;
-    let (left_parent, right_parent) = MergedPathTree::get_idx_parents(idx);
-    if let Some(left_parent) = left_parent {
-        //println!("Invalidating left parent {}", left_parent);
-        invalidate_node_and_parents(left_parent, tree, dst_mat_del, max_time);
-    }
-    if let Some(right_parent) = right_parent {
-        //println!("Invalidating right parent {}", right_parent);
-        invalidate_node_and_parents(right_parent, tree, dst_mat_del, max_time);
-    }
-}
-fn invalidate_path_tree(paths: &mut Vec<MergedPathTree>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
-    //let mut i = 0;
-    for path in paths {
-        //println!("Invalidating path {:?}", path.fields);
-        let (leaf_min_index, leaf_max_index) = MergedPathTree::get_range(MergedPathTree::get_prof(path.fields.len()-1));
-        //println!("Leaf min index {} and max index {}", leaf_min_index, leaf_max_index);
-        for i in leaf_min_index..=leaf_max_index {
-            let subpath = &path.fields[i];
-            for t in 0..max_time {
-                //if deleted_edges.links[subpath.from as usize][subpath.to as usize].contains(&t) {
-                if deleted_edges.links[subpath.from as usize][subpath.to as usize] & (U256::one() << t) != U256::zero() {
-                    // invalidate the distance matrix
-                    //println!("Invalidating path from {} to {} at time {} with total length {}", subpath.from, subpath.to, t, subpath.total_length);
-                    invalidate_node_and_parents(i, path, dst_mat_del, max_time);
-                    break;
-                }
+        if let Some(right_parent) = right_parent {
+            let right_invalidated = if (leaf_length as usize) < 256 {
+                path.fields[right_parent].invalidated_at | leaf_invalidated >> leaf_length as usize | leaf_invalidated
+            } else {
+                path.fields[right_parent].invalidated_at | leaf_invalidated
+            };
+            path.fields[right_parent].invalidated_at = right_invalidated;
+        }
+
+        // write 0 in the distance matrix
+        for t in 0..max_time {
+            // if they're deleted, write 0 in the distance matrix
+            if leaf_invalidated & (U256::one() << t) != U256::zero() {
+                dst_mat_del[t as usize][leaf_from as usize][leaf_to as usize] = 0;
             }
         }
-        //i += 1;
-        //println!("Invalidated path {}", i);
+    }
+    if layer == 0 {
+        return;
+    }
+    invalidate_path_tree_layer(path, layer - 1, deleted_edges, max_time, dst_mat_del);
+}
+
+fn invalidate_path_tree(paths: &mut Vec<MergedPathTree>, deleted_edges: &DeletedLinksMatrix, max_time: u64, dst_mat_del: &mut Vec<DistanceMatrix>) {
+    for path in paths {
+        let max_prof = MergedPathTree::get_prof(path.fields.len() - 1);
+        invalidate_path_tree_layer(path, max_prof, deleted_edges, max_time, dst_mat_del);
     }
 }
 
@@ -945,6 +957,8 @@ fn graph_to_temporal(graph: &Graph, max_time: u64, deleted_edges: &Vec<DeletedLi
         deleted_edges_matrix
     });
 
+    println!("Deleted edges matrix : {:?}", deleted_edges_matrix.links);
+
     benchmark!("invalidate_deleted_edges", invalidate_path_tree(&mut paths, &deleted_edges_matrix, max_time, &mut dst_mat_del));
     println!("Annex edges : {:?}", annex_edges);
 
@@ -1275,7 +1289,7 @@ fn main() {
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
     let max_time = 50;*/
 
-    /*let nb_nodes = 10;
+    let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1289,9 +1303,9 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;*/
+    let max_time = 5;
 
-    let edges = vec![
+    /*let edges = vec![
             Edge {
                 from: 0,
                 to: 1,
@@ -1314,7 +1328,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = vec![(0, vec![(1, 1), (2, 1)]), (1, vec![]), (2, vec![(1, 1)])];
-    let max_time = 6;
+    let max_time = 6;*/
 
 
     let max_node_index = edges.iter().map(|e| e.from.max(e.to)).max().unwrap() + 1;
