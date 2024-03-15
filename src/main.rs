@@ -526,6 +526,7 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
     // look at all the leaves, if they are invalidated, then invalidate the parent
     let (minr, maxr) = MergedPathTree::get_range(layer);
     for i in minr..=maxr {
+
         let invalidated_at_matrix = deleted_edges.links[path.fields[i].from as usize][path.fields[i].to as usize];
         path.fields[i].invalidated_at |= invalidated_at_matrix;
         let (leaf_invalidated, leaf_length, (left_parent, right_parent)) = {
@@ -533,26 +534,14 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
             (leaf.invalidated_at, leaf.total_length, MergedPathTree::get_idx_parents(i))
         };
         let (leaf_from, leaf_to) = (path.fields[i].from, path.fields[i].to);
-        //println!("Leaf from {} to {} with bitmask {:?}", leaf_from, leaf_to, leaf_invalidated);
-        let mask = leaf_invalidated | (leaf_invalidated >> leaf_length as usize) * ((leaf_length as usize) < 256) as usize;
-        //path.fields[left_parent].invalidated_at |= leaf_invalidated | (leaf_invalidated >> leaf_length as usize) * ((leaf_length as usize) < 256) as usize;
-        /*if let Some(left_parent) = left_parent {
-            let left_invalidated = if (leaf_length as usize) < 256 {
-                path.fields[left_parent].invalidated_at | leaf_invalidated >> leaf_length as usize | leaf_invalidated
-            } else {
-                path.fields[left_parent].invalidated_at | leaf_invalidated
-            };
-            path.fields[left_parent].invalidated_at = left_invalidated;
-        }
-        if let Some(right_parent) = right_parent {
-            let right_invalidated = if (leaf_length as usize) < 256 {
-                path.fields[right_parent].invalidated_at | leaf_invalidated >> leaf_length as usize | leaf_invalidated
-            } else {
-                path.fields[right_parent].invalidated_at | leaf_invalidated
-            };
-            path.fields[right_parent].invalidated_at = right_invalidated;
-        }*/
 
+        // Overflows are used to get a mask of 0 or 1 : 00000000 -> 11111111, 00000001 -> 00000000
+        let u256_masked = unsafe {
+            let positive_mask = (((leaf_length as usize) < 256) as u64) - 1;
+            let positive_mask = [positive_mask, positive_mask, positive_mask, positive_mask];
+            std::mem::transmute(positive_mask)
+        };
+        let mask = leaf_invalidated | ((leaf_invalidated >> leaf_length as usize) & u256_masked);
         if let Some(left_parent) = left_parent {
             path.fields[left_parent].invalidated_at |= mask;
         }
@@ -562,13 +551,10 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
 
         // write 0 in the distance matrix
         for t in 0..max_time {
-            // if they're deleted, write 0 in the distance matrix
             if leaf_invalidated & (U256::one() << t) != U256::zero() {
-                // check for u32::MAX because we don't want to write 0 in the distance matrix if the path is already infinite
                 if dst_mat_del[t as usize][leaf_from as usize][leaf_to as usize] != u32::MAX {
                     dst_mat_del[t as usize][leaf_from as usize][leaf_to as usize] = 0;
                 }
-                //dst_mat_del[t as usize][leaf_from as usize][leaf_to as usize] = 0;
             }
         }
     }
@@ -1177,7 +1163,7 @@ fn sum_dma(dma : &Vec<DistanceMatrix>, max_time: u64) -> (f64, u64) {
 
 fn main() {
     
-    let nb_nodes = 200;
+    /*let nb_nodes = 200;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1300,9 +1286,9 @@ fn main() {
         times: vec![12],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 50;
+    let max_time = 50;*/
 
-    /*let nb_nodes = 10;
+    let nb_nodes = 10;
     let edges : Vec<Edge> = (0..nb_nodes).map(|i| {
         Edge {
             from: i,
@@ -1316,7 +1302,7 @@ fn main() {
         times: vec![0, 1],
     }];
     let nodes = (0..nb_nodes+1).map(|i| (i, vec![(i + 1, 1)])).collect();
-    let max_time = 5;*/
+    let max_time = 5;
 
     /*let edges = vec![
             Edge {
