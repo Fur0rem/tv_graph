@@ -534,7 +534,9 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
         };
         let (leaf_from, leaf_to) = (path.fields[i].from, path.fields[i].to);
         //println!("Leaf from {} to {} with bitmask {:?}", leaf_from, leaf_to, leaf_invalidated);
-        if let Some(left_parent) = left_parent {
+        let mask = leaf_invalidated | (leaf_invalidated >> leaf_length as usize) * ((leaf_length as usize) < 256) as usize;
+        //path.fields[left_parent].invalidated_at |= leaf_invalidated | (leaf_invalidated >> leaf_length as usize) * ((leaf_length as usize) < 256) as usize;
+        /*if let Some(left_parent) = left_parent {
             let left_invalidated = if (leaf_length as usize) < 256 {
                 path.fields[left_parent].invalidated_at | leaf_invalidated >> leaf_length as usize | leaf_invalidated
             } else {
@@ -549,6 +551,13 @@ fn invalidate_path_tree_layer(path: &mut MergedPathTree, layer: usize, deleted_e
                 path.fields[right_parent].invalidated_at | leaf_invalidated
             };
             path.fields[right_parent].invalidated_at = right_invalidated;
+        }*/
+
+        if let Some(left_parent) = left_parent {
+            path.fields[left_parent].invalidated_at |= mask;
+        }
+        if let Some(right_parent) = right_parent {
+            path.fields[right_parent].invalidated_at |= mask;
         }
 
         // write 0 in the distance matrix
